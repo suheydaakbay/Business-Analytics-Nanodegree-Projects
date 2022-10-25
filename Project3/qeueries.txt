@@ -1,0 +1,87 @@
+Q1:
+
+SELECT Genre.Name,
+       BillingCountry,
+       SUM(InvoiceLine.Quantity * InvoiceLine.UnitPrice) AS Spending
+FROM Invoice
+JOIN InvoiceLine ON Invoice.InvoiceId = InvoiceLine.InvoiceId
+JOIN Track ON InvoiceLine.TrackId = Track.TrackId
+JOIN Genre ON Track.GenreID = Genre.GenreId
+WHERE BillingCountry = 'Germany'
+GROUP BY Genre.Name
+ORDER BY Spending DESC
+LIMIT 5;
+
+
+
+Q2:
+
+SELECT Customer.CustomerId,
+       Customer.FirstName,
+       Customer.LastName,
+       SUM(InvoiceLine.UnitPrice * InvoiceLine.Quantity) AS Total
+FROM Customer
+JOIN Invoice ON Customer.CustomerId = Invoice.CustomerId
+JOIN InvoiceLine ON InvoiceLine.InvoiceId = Invoice.InvoiceId
+JOIN Track ON InvoiceLine.TrackId = Track.TrackId
+JOIN Genre ON Track.GenreId = Genre.GenreId
+WHERE Genre.Name = 'Classical'
+GROUP BY Customer.CustomerId
+ORDER BY Total
+LIMIT 5;
+
+
+
+Q3:
+
+SELECT Employee.EmployeeId,
+       Employee.FirstName,
+       Employee.LastName,
+       EmployeeBestSellerCities.BestSellerCity,
+       EmployeeBestSellerCities.BestSellerCityInvoiceTotal,
+       ROUND(JULIANDAY() - JULIANDAY(Employee.HireDate), 1) AS EmploymentDuration
+FROM Employee
+JOIN
+  (SELECT EmployeeCitySales.EmployeeId,
+          EmployeeCitySales.BillingCity AS BestSellerCity,
+          EmployeeCitySales.InvoiceTotal AS BestSellerCityInvoiceTotal
+   FROM
+     (SELECT Employee.EmployeeId,
+             Invoice.BillingCity,
+             SUM(Invoice.Total) AS InvoiceTotal
+      FROM Employee
+      JOIN Customer ON Employee.EmployeeId = Customer.SupportRepId
+      JOIN Invoice ON Customer.CustomerId = Invoice.CustomerId
+      GROUP BY Invoice.BillingCity,
+               Employee.EmployeeId
+      ORDER BY InvoiceTotal DESC) EmployeeCitySales
+   GROUP BY EmployeeCitySales.EmployeeId) EmployeeBestSellerCities ON EmployeeBestSellerCities.EmployeeId = Employee.EmployeeId;
+
+
+
+Q4:
+
+WITH Sales AS
+  (SELECT InvoiceLine.UnitPrice * Quantity AS Cost,
+          MediaType.Name,
+          BillingState
+   FROM InvoiceLine
+   JOIN Track ON InvoiceLine.TrackId = Track.TrackId
+   JOIN MediaType ON Track.MediaTypeId = MediaType.MediaTypeId
+   JOIN Invoice ON InvoiceLine.InvoiceId = Invoice.InvoiceId
+   WHERE BillingCountry = 'USA' ),
+     SalesByTypeAndState AS
+  (SELECT BillingState,
+          Name,
+          SUM(Cost) AS Total
+   FROM Sales
+   GROUP BY BillingState,
+            Name),
+     WindowTable AS
+  (SELECT *,
+          ROW_NUMBER() OVER (PARTITION BY BillingState
+                             ORDER BY Total DESC) AS RN
+   FROM SalesByTypeAndState)
+SELECT *
+FROM WindowTable
+WHERE RN = 1;
